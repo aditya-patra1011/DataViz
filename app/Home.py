@@ -1,10 +1,12 @@
-"""DataViz home page. Run with: streamlit run app/main.py"""
+"""DataViz home page. Run with: streamlit run app/Home.py"""
 
 import sys
 from pathlib import Path
 
-# Streamlit only adds app/ to the import path, so add the project root to reach core/
-sys.path.append(str(Path(__file__).resolve().parent.parent))
+# Add the project root to the import path (only once, since Streamlit reruns this file)
+ROOT = str(Path(__file__).resolve().parents[1])
+if ROOT not in sys.path:
+    sys.path.append(ROOT)
 
 import streamlit as st  # noqa: E402
 
@@ -30,6 +32,6 @@ if "df" not in st.session_state:
     st.session_state["df"] = None
 
 if st.session_state["df"] is None:
-    st.info("No data loaded yet. The Data Input page arrives in Phase 1.")
+    st.info("No data loaded yet. Open **Data Input** in the sidebar to get started.")
 else:
     st.success(f"Dataset loaded: {len(st.session_state['df'])} rows")

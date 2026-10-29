@@ -29,7 +29,7 @@ python -m venv .venv
 .venv\Scripts\activate          # Windows
 # source .venv/bin/activate     # macOS / Linux
 pip install -r requirements.txt -r requirements-dev.txt
-streamlit run app/main.py
+streamlit run app/Home.py
 ```
 
 ## Development
@@ -45,8 +45,8 @@ Every pull request is checked automatically by GitHub Actions (lint + tests).
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 | Project setup, CI | 🚧 In progress |
-| 1 | Data input (manual, paste, CSV/Excel upload) | ⏳ |
+| 0 | Project setup, CI | ✅ Done |
+| 1 | Data input (manual, paste, CSV/Excel upload) | 🚧 In progress |
 | 2 | Cleaning & validation pipeline | ⏳ |
 | 3 | Visualizations | ⏳ |
 | 4 | Chart recommender & auto-insights | ⏳ |
