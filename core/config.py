@@ -15,3 +15,8 @@ APP_ICON = "📊"
 # Uploads
 ALLOWED_FILE_TYPES = ["csv", "xlsx"]
 MAX_ROWS = 100_000
+
+# Data profiling
+CATEGORICAL_MAX_UNIQUE = 20  # text columns with this many distinct values or fewer are categories
+PARSE_THRESHOLD = 0.8  # share of text values that must parse to count as numbers or dates
+IQR_MULTIPLIER = 1.5  # outliers lie this many IQRs below Q1 or above Q3
