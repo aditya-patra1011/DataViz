@@ -46,8 +46,8 @@ Every pull request is checked automatically by GitHub Actions (lint + tests).
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Project setup, CI | ✅ Done |
-| 1 | Data input (manual, paste, CSV/Excel upload) | 🚧 In progress |
-| 2 | Cleaning & validation pipeline | ⏳ |
+| 1 | Data input (manual, paste, CSV/Excel upload) | ✅ Done |
+| 2 | Cleaning & validation pipeline | 🚧 In progress |
 | 3 | Visualizations | ⏳ |
 | 4 | Chart recommender & auto-insights | ⏳ |
 | 5 | Saved datasets & export | ⏳ |

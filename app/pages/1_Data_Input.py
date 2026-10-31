@@ -24,6 +24,8 @@ def set_dataset(df, source: str) -> None:
     """Store the dataset in session state so every page can use it."""
     st.session_state["df"] = df
     st.session_state["source"] = source
+    st.session_state["df_original"] = df  # kept so the Clean page can undo its changes
+    st.session_state["clean_log"] = []
     st.success(f"Loaded {len(df):,} rows × {len(df.columns)} columns from {source}.")
 
 
