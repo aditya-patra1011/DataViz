@@ -37,9 +37,31 @@ android {
         versionCode = 1
         versionName = "0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        ndk {
-            // arm64-v8a is real phones; x86_64 is the emulator on a laptop
-            abiFilters += listOf("arm64-v8a", "x86_64")
+    }
+
+    // Python and pandas are built separately for each kind of processor, so each version
+    // carries only one copy: "phone" for real Android phones, "emulator" for a laptop.
+    flavorDimensions += "device"
+    productFlavors {
+        create("phone") {
+            dimension = "device"
+            ndk { abiFilters += "arm64-v8a" }
+        }
+        create("emulator") {
+            dimension = "device"
+            ndk { abiFilters += "x86_64" }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            // Removes unused Kotlin and library code
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            // Signed with the local debug key so it can be installed directly. Publishing on
+            // Google Play would need a private release key instead.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
