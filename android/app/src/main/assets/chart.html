@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html, body, #chart { margin: 0; width: 100%; height: 100%; }
+  </style>
+  <script src="plotly.min.js"></script>
+</head>
+<body>
+  <div id="chart"></div>
+  <script>
+    function render(figure) {
+      // Fill the screen, unless the chart asked for a set height (panels need room to scroll)
+      figure.layout.autosize = !figure.layout.height;
+      Plotly.react("chart", figure.data, figure.layout, { responsive: true, displaylogo: false });
+    }
+  </script>
+</body>
+</html>
