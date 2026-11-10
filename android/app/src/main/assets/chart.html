@@ -12,6 +12,8 @@
   <div id="chart"></div>
   <script>
     function render(figure) {
+      // Fill the screen, unless the chart asked for a set height (panels need room to scroll)
+      figure.layout.autosize = !figure.layout.height;
       Plotly.react("chart", figure.data, figure.layout, { responsive: true, displaylogo: false });
     }
   </script>
