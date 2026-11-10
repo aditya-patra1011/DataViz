@@ -1,116 +1,110 @@
 package com.adityapatra.dataviz
 
-import android.content.Context
 import android.os.Bundle
-import android.view.ViewGroup
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import com.chaquo.python.Python
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-
-private sealed interface ChartState {
-    data object Loading : ChartState
-    data class Ready(val figureJson: String) : ChartState
-    data class Failed(val message: String) : ChartState
-}
-
-/** Runs the Python core on the bundled sales sample and returns the chart as Plotly JSON. */
-fun buildSalesChart(context: Context, dark: Boolean): String {
-    val file = "sales.csv"
-    val content = context.assets.open("samples/$file").use { it.readBytes() }
-    return Python.getInstance().getModule("bridge")
-        .callAttr("chart_from_file", content, file, "Bar", "Month", "Sales", "Region", dark)
-        .toString()
-}
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val dark = isSystemInDarkTheme()
-            MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
-                Surface(Modifier.fillMaxSize()) {
-                    Box(Modifier.safeDrawingPadding()) {
-                        ChartScreen(dark)
-                    }
-                }
-            }
+            val scheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
+            MaterialTheme(colorScheme = scheme) { DataVizApp() }
         }
     }
 }
 
-@Composable
-private fun ChartScreen(dark: Boolean) {
-    val context = LocalContext.current
-    var state by remember { mutableStateOf<ChartState>(ChartState.Loading) }
+private val tabs = listOf("📥" to "Data", "🧹" to "Clean", "📈" to "Charts")
 
-    LaunchedEffect(dark) {
-        state = ChartState.Loading
-        // Python and pandas take a few seconds to start, so keep that off the UI thread
-        state = withContext(Dispatchers.Default) {
-            runCatching { buildSalesChart(context, dark) }.fold(
-                onSuccess = { ChartState.Ready(it) },
-                onFailure = { ChartState.Failed(it.message ?: "The chart could not be built.") },
-            )
+@Composable
+private fun DataVizApp(model: AppViewModel = viewModel()) {
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val snackbar = remember { SnackbarHostState() }
+
+    LaunchedEffect(model.notice) {
+        model.notice?.let {
+            snackbar.showSnackbar(it)
+            model.notice = null
         }
     }
 
-    when (val current = state) {
-        ChartState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
-            CircularProgressIndicator()
-        }
-        is ChartState.Failed -> Text(current.message, Modifier.padding(16.dp))
-        is ChartState.Ready -> key(current.figureJson) { ChartView(current.figureJson) }
-    }
-}
-
-@Composable
-private fun ChartView(figureJson: String) {
-    AndroidView(
-        modifier = Modifier.fillMaxSize(),
-        factory = { context ->
-            WebView(context).apply {
-                // Without this the page can't tell how tall the screen is
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                )
-                settings.javaScriptEnabled = true
-                webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView, url: String) {
-                        view.evaluateJavascript("render($figureJson)", null)
-                    }
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = {
+            NavigationBar {
+                tabs.forEachIndexed { index, (icon, label) ->
+                    NavigationBarItem(
+                        selected = tab == index,
+                        onClick = { tab = index },
+                        icon = { Text(icon) },
+                        label = { Text(label) },
+                    )
                 }
-                loadUrl("file:///android_asset/chart.html")
             }
         },
-    )
+    ) { padding ->
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .consumeWindowInsets(padding)
+                .imePadding(),
+        ) {
+            if (!model.ready) {
+                StartingUp()
+            } else {
+                when (tab) {
+                    0 -> DataScreen(model)
+                    1 -> CleanScreen(model)
+                    else -> ChartsScreen(model)
+                }
+                if (model.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+@Composable
+private fun StartingUp() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        CircularProgressIndicator()
+        Text("Starting DataViz…")
+    }
 }
