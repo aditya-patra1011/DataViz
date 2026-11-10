@@ -30,3 +30,82 @@ jobs:
 
       - name: Test (pytest)
         run: pytest -v
+
+  android-python:
+    # The exact Python and pandas versions the Android app ships with
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-android.txt pytest==9.2.0
+
+      - name: Test core on Android's versions
+        run: pytest -v --ignore=tests/test_visualize_page.py
+
+  android-app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the APK
+        run: ./gradlew assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dataviz-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run on an Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          working-directory: android
+          disable-animations: true
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            ./gradlew installDebug
+            adb shell am start -W -n com.adityapatra.dataviz/.MainActivity
+            sleep 90
+            adb exec-out screencap -p > "$GITHUB_WORKSPACE/emulator-screenshot.png"
+            adb logcat -d -s python.stdout python.stderr AndroidRuntime chromium > "$GITHUB_WORKSPACE/emulator-log.txt" || true
+            ./gradlew connectedDebugAndroidTest
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-results
+          path: |
+            emulator-screenshot.png
+            emulator-log.txt
+            android/app/build/reports/androidTests/

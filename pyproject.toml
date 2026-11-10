@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = [".venv-android"]
 
 [tool.ruff.lint]
 # E/W: style errors, F: real bugs (undefined names, unused imports), I: import order, B: likely bugs
@@ -14,4 +15,4 @@ select = ["E", "W", "F", "I", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "android/app/src/main/python"]
