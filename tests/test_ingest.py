@@ -59,6 +59,23 @@ def test_parse_tab_separated_text():
     assert df["Sales"].tolist() == [120, 135]
 
 
+def test_rows_wider_than_the_header_are_rejected_not_silently_cut():
+    with pytest.raises(ingest.IngestError, match="more values"):
+        ingest.parse_text("a,b\n1,2,3,4,5")
+    with pytest.raises(ingest.IngestError, match="more values"):
+        ingest.read_file(BytesIO(b"a,b\n1,2,3\n4,5,6\n"), "wide.csv")
+
+
+def test_from_table_makes_numbers_and_skips_blank_rows():
+    df = ingest.from_table(["Label", "Value"], [["Jan", "1,200"], ["", ""]])
+    assert df["Value"].tolist() == [1200.0]
+
+
+def test_from_table_rejects_text_in_number_columns():
+    with pytest.raises(ingest.IngestError, match="not a number"):
+        ingest.from_table(["Label", "Value"], [["Jan", "lots"]])
+
+
 def test_parse_comma_separated_text():
     df = ingest.parse_text("a,b\n1,2\n")
     assert df.shape == (1, 2)

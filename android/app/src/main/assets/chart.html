@@ -14,7 +14,13 @@
     function render(figure) {
       // Fill the screen, unless the chart asked for a set height (panels need room to scroll)
       figure.layout.autosize = !figure.layout.height;
-      Plotly.react("chart", figure.data, figure.layout, { responsive: true, displaylogo: false });
+      document.body.style.background = figure.layout.paper_bgcolor;
+      Plotly.react("chart", figure.data, figure.layout, {
+        responsive: true,
+        displaylogo: false,
+        displayModeBar: figure.data[0].type !== "pie",
+        modeBarButtons: [["zoomIn2d", "zoomOut2d", "resetScale2d"]],
+      });
     }
   </script>
 </body>

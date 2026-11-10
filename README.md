@@ -48,7 +48,9 @@ Every pull request is checked automatically by GitHub Actions (lint + tests).
 | 0 | Project setup, CI | ✅ Done |
 | 1 | Data input (manual, paste, CSV/Excel upload) | ✅ Done |
 | 2 | Cleaning & validation pipeline | ✅ Done |
-| 3 | Visualizations | 🚧 In progress |
+| 3 | Visualizations | ✅ Done |
+| A1 | Android proof of concept (Python core on the device) | ✅ Done |
+| A2 | Android screens: Data, Clean, Charts | 🚧 In progress |
 | 4 | Chart recommender & auto-insights | ⏳ |
 | 5 | Saved datasets & export | ⏳ |
 | 6 | Tests, polish & deployment | ⏳ |

@@ -1,11 +1,12 @@
 """Load data from files, pasted text and the manual-entry table into pandas DataFrames."""
 
+import warnings
 from io import StringIO
 from pathlib import Path
 
 import pandas as pd
 
-from core import config
+from core import config, profile
 
 
 class IngestError(ValueError):
@@ -43,14 +44,24 @@ def validate(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _read_delimited(source, **options) -> pd.DataFrame:
+    """Read CSV text, refusing rows wider than the header instead of quietly losing values."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", pd.errors.ParserWarning)
+        try:
+            return pd.read_csv(source, index_col=False, **options)
+        except pd.errors.ParserWarning as exc:
+            raise IngestError("Some rows have more values than there are column names.") from exc
+
+
 def _read_csv(file) -> pd.DataFrame:
     """Read CSV as UTF-8, falling back to Latin-1 for files saved by older Excel versions."""
     try:
-        return pd.read_csv(file)
+        return _read_delimited(file)
     except UnicodeDecodeError:
         if hasattr(file, "seek"):
             file.seek(0)
-        return pd.read_csv(file, encoding="latin-1")
+        return _read_delimited(file, encoding="latin-1")
 
 
 def read_file(file, filename: str) -> pd.DataFrame:
@@ -65,6 +76,8 @@ def read_file(file, filename: str) -> pd.DataFrame:
 
     try:
         df = _read_csv(file) if ext == "csv" else pd.read_excel(file)
+    except IngestError:
+        raise
     except Exception as exc:
         raise IngestError(f"Could not read '{filename}': {exc}") from exc
     return validate(df)
@@ -79,7 +92,9 @@ def parse_text(text: str) -> pd.DataFrame:
     first_line = text.splitlines()[0]
     sep = "\t" if "\t" in first_line else ","
     try:
-        df = pd.read_csv(StringIO(text), sep=sep)
+        df = _read_delimited(StringIO(text), sep=sep)
+    except IngestError:
+        raise
     except Exception as exc:
         raise IngestError(f"Could not parse the pasted data: {exc}") from exc
     return validate(df)
@@ -105,6 +120,21 @@ def from_editor(df: pd.DataFrame) -> pd.DataFrame:
     """Turn the manual-entry table into a dataset, dropping rows the user left blank."""
     df = df.replace("", pd.NA).dropna(how="all").reset_index(drop=True)
     return validate(df)
+
+
+def from_table(columns: list[str], rows: list[list[str]]) -> pd.DataFrame:
+    """Build a dataset from typed text: the first column holds labels, the rest hold numbers."""
+    names = clean_column_names(columns)
+    table = pd.DataFrame(rows, columns=names, dtype=object)
+    for name in names:
+        table[name] = table[name].astype(str).str.strip()
+    for name in names[1:]:
+        numbers = profile.to_number(table[name].where(table[name] != ""))
+        unreadable = table.loc[(table[name] != "") & numbers.isna(), name]
+        if not unreadable.empty:
+            raise IngestError(f"'{unreadable.iloc[0]}' in column '{name}' is not a number.")
+        table[name] = numbers
+    return from_editor(table)
 
 
 def list_samples() -> list[str]:
