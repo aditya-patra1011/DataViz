@@ -3,6 +3,7 @@ package com.adityapatra.dataviz
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -46,6 +47,22 @@ class PythonCoreTest {
             val figure = JSONObject(reply.getString("figure"))
             assert(figure.getJSONArray("data").length() > 0) { "$chart drew nothing" }
         }
+    }
+
+    @Test
+    fun insightsAndSuggestionsWorkOnTheDevice() = runBlocking {
+        val insights = insightsFrom(Core.call("insights"))
+        assert(insights.findings.isNotEmpty())
+        assert(insights.suggestions.isNotEmpty())
+    }
+
+    @Test
+    fun datasetsSaveAndReopenOnTheDevice() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        Core.call("set_storage", File(context.cacheDir, "test-${System.nanoTime()}.db").path)
+        assertEquals("mine", savedFrom(Core.call("save_dataset", "mine")).single().name)
+        assertEquals(20, assertNotNull(snapshotFrom(Core.call("open_saved", "mine"))).rows)
+        assertEquals(0, savedFrom(Core.call("delete_saved", "mine")).size)
     }
 
     @Test(expected = CoreError::class)

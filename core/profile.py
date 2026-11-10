@@ -59,6 +59,14 @@ def needs_conversion(series: pd.Series, kind: str) -> bool:
     return False
 
 
+def to_real_type(series: pd.Series) -> pd.Series:
+    """Convert numbers and dates stored as text; other columns are returned unchanged."""
+    kind = detect_type(series)
+    if not needs_conversion(series, kind):
+        return series
+    return to_number(series) if kind == NUMERIC else to_datetime(series)
+
+
 def outlier_bounds(series: pd.Series) -> tuple[float, float]:
     """Lower and upper limits of normal values, using the IQR rule."""
     q1, q3 = series.quantile([0.25, 0.75])

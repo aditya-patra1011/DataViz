@@ -72,9 +72,67 @@ data class ChartOptions(
     val usable: Boolean,
 )
 
+data class Suggestion(
+    val chart: String,
+    val reason: String,
+    val x: String?,
+    val y: String?,
+    val color: String?,
+    val agg: String,
+)
+
+data class Insights(
+    val findings: List<String>,
+    val stats: TableData,
+    val suggestions: List<Suggestion>,
+)
+
+data class SavedDataset(
+    val name: String,
+    val source: String,
+    val savedAt: String,
+    val rows: Int,
+    val columns: Int,
+)
+
 data class DrawnChart(val figureJson: String, val notes: List<String>, val data: TableData)
 
 fun JSONArray.strings(): List<String> = List(length()) { getString(it) }
+
+private fun JSONObject.textOrNull(key: String) = if (isNull(key)) null else getString(key)
+
+fun insightsFrom(reply: JSONObject): Insights {
+    val suggestions = reply.getJSONArray("suggestions")
+    return Insights(
+        findings = reply.getJSONArray("findings").strings(),
+        stats = tableFrom(reply.getJSONObject("stats")),
+        suggestions = List(suggestions.length()) { index ->
+            val item = suggestions.getJSONObject(index)
+            Suggestion(
+                chart = item.getString("chart"),
+                reason = item.getString("reason"),
+                x = item.textOrNull("x"),
+                y = item.textOrNull("y"),
+                color = item.textOrNull("color"),
+                agg = item.getString("agg"),
+            )
+        },
+    )
+}
+
+fun savedFrom(reply: JSONObject): List<SavedDataset> {
+    val saved = reply.getJSONArray("saved")
+    return List(saved.length()) { index ->
+        val item = saved.getJSONObject(index)
+        SavedDataset(
+            name = item.getString("name"),
+            source = item.getString("source"),
+            savedAt = item.getString("saved_at"),
+            rows = item.getInt("rows"),
+            columns = item.getInt("columns"),
+        )
+    }
+}
 
 fun tableFrom(json: JSONObject): TableData {
     val rows = json.getJSONArray("rows")

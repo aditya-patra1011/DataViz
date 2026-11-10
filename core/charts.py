@@ -127,14 +127,6 @@ def has_repeats(df: pd.DataFrame, x: str, color: str | None = None) -> bool:
     return bool(df.duplicated(subset=list(dict.fromkeys([x, color or x]))).any())
 
 
-def _to_real_type(series: pd.Series) -> pd.Series:
-    """Convert numbers and dates stored as text, so charts work before any cleaning."""
-    kind = profile.detect_type(series)
-    if not profile.needs_conversion(series, kind):
-        return series
-    return profile.to_number(series) if kind == profile.NUMERIC else profile.to_datetime(series)
-
-
 def _prepare(
     df: pd.DataFrame, columns: list[str], color: str | None = None
 ) -> tuple[pd.DataFrame, list[str]]:
@@ -142,7 +134,7 @@ def _prepare(
     keep = list(dict.fromkeys(columns + ([color] if color else [])))
     data = df[keep].copy()
     for column in columns:
-        data[column] = _to_real_type(data[column])
+        data[column] = profile.to_real_type(data[column])
 
     before = len(data)
     data = data.dropna(subset=columns)
@@ -370,7 +362,7 @@ def _box(req: Request):
 
 
 def _heatmap(req: Request):
-    converted = req.df.apply(_to_real_type)
+    converted = req.df.apply(profile.to_real_type)
     numeric = converted.select_dtypes("number")
     varying = numeric.loc[:, numeric.nunique() > 1]
     if varying.shape[1] < 2:
@@ -418,7 +410,17 @@ def _style(fig: go.Figure, title: str, theme: dict) -> None:
     """Apply one look to every chart: quiet axes and grid, so the data stands out."""
     fig.update_layout(
         template="none",
-        title={"text": title, "xref": "paper", "x": 0, "font": {"color": theme["ink"]}},
+        # The title sits at a fixed spot at the top, so the legend can be fitted below it
+        title={
+            "text": title,
+            "xref": "paper",
+            "x": 0,
+            "yref": "container",
+            "y": 1,
+            "yanchor": "top",
+            "pad": {"t": 20},
+            "font": {"color": theme["ink"]},
+        },
         paper_bgcolor=theme["surface"],
         plot_bgcolor=theme["surface"],
         font={"family": config.CHART_FONT, "color": theme["secondary"]},

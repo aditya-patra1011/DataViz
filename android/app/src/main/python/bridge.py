@@ -11,11 +11,16 @@ from io import BytesIO
 
 import pandas as pd
 
-from core import charts, clean, ingest, profile
+from core import charts, clean, ingest, profile, recommend, stats, storage
 
 PREVIEW_ROWS = 50
 TABLE_ROWS = 200
-USER_ERRORS = (ingest.IngestError, clean.CleanError, charts.ChartError)
+USER_ERRORS = (
+    ingest.IngestError,
+    clean.CleanError,
+    charts.ChartError,
+    storage.StorageError,
+)
 
 
 @dataclass
@@ -26,6 +31,7 @@ class Session:
     original: pd.DataFrame | None = None
     source: str = ""
     log: list[str] = field(default_factory=list)
+    db_path: str = ""
 
 
 session = Session()
@@ -82,6 +88,12 @@ def _set_dataset(df: pd.DataFrame, source: str) -> dict:
     rows = "1 row" if len(df) == 1 else f"{len(df):,} rows"
     columns = "1 column" if df.shape[1] == 1 else f"{df.shape[1]} columns"
     return _snapshot(f"Loaded {rows} and {columns} from {source}.")
+
+
+@_respond
+def set_storage(db_path: str) -> dict:
+    session.db_path = db_path
+    return {}
 
 
 @_respond
@@ -188,3 +200,47 @@ def draw(
         "notes": result.notes,
         "data": _table(result.data, TABLE_ROWS),
     }
+
+
+@_respond
+def insights() -> dict:
+    """Findings, summary statistics and suggested charts for the current dataset."""
+    df = session.df
+    return {
+        "findings": stats.insights(df),
+        "stats": _table(stats.summary_table(df), TABLE_ROWS),
+        "suggestions": [item.to_dict() for item in recommend.suggest(df)],
+    }
+
+
+def _saved() -> list[dict]:
+    return storage.list_saved(session.db_path)
+
+
+@_respond
+def saved_datasets() -> dict:
+    return {"saved": _saved()}
+
+
+@_respond
+def save_dataset(name: str) -> dict:
+    replaced = storage.save(session.db_path, name, session.df, session.source)
+    verb = "Updated" if replaced else "Saved"
+    return {"message": f"{verb} '{name.strip()}'.", "saved": _saved()}
+
+
+@_respond
+def open_saved(name: str) -> dict:
+    df, _ = storage.load(session.db_path, name)
+    return _set_dataset(df, f"saved: {name}")
+
+
+@_respond
+def delete_saved(name: str) -> dict:
+    storage.delete(session.db_path, name)
+    return {"message": f"Deleted '{name}'.", "saved": _saved()}
+
+
+@_respond
+def export_csv() -> dict:
+    return {"csv": session.df.to_csv(index=False)}
