@@ -82,6 +82,22 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # This download occasionally arrives corrupted, which would otherwise fail the whole job.
+      # The emulator step below skips the download once the image is in place.
+      - name: Download the emulator image
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          for attempt in 1 2 3 4 5; do
+            if "$SDKMANAGER" --install "system-images;android-34;google_apis;x86_64" --channel=0 > /dev/null \
+              && [ -f "$ANDROID_HOME/system-images/android-34/google_apis/x86_64/system.img" ]; then
+              exit 0
+            fi
+            echo "Attempt $attempt failed, retrying"
+            sleep 30
+          done
+          exit 1
+
       - name: Run on an Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
