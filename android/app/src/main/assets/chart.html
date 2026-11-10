@@ -11,16 +11,35 @@
 <body>
   <div id="chart"></div>
   <script>
+    function exportImage() {
+      Plotly.toImage("chart", { format: "png", scale: 2 })
+        .then(function (image) { AndroidImage.deliver(image); });
+    }
+
+    // On a narrow screen the legend can wrap onto several rows. Make room for it under the
+    // title, instead of letting it run into the title.
+    function fitHeader(chart) {
+      var legend = chart.querySelector(".legend");
+      var title = chart.querySelector(".gtitle");
+      if (!legend || !title) return;
+      var top = chart.getBoundingClientRect().top;
+      var needed = title.getBoundingClientRect().bottom - top + 12
+        + legend.getBoundingClientRect().height + 16;
+      if (needed > chart._fullLayout.margin.t) {
+        Plotly.relayout(chart, { "margin.t": Math.ceil(needed) });
+      }
+    }
+
     function render(figure) {
       // Fill the screen, unless the chart asked for a set height (panels need room to scroll)
       figure.layout.autosize = !figure.layout.height;
       document.body.style.background = figure.layout.paper_bgcolor;
-      Plotly.react("chart", figure.data, figure.layout, {
+      return Plotly.react("chart", figure.data, figure.layout, {
         responsive: true,
         displaylogo: false,
         displayModeBar: figure.data[0].type !== "pie",
         modeBarButtons: [["zoomIn2d", "zoomOut2d", "resetScale2d"]],
-      });
+      }).then(fitHeader);
     }
   </script>
 </body>

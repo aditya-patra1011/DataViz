@@ -2,11 +2,15 @@ package com.adityapatra.dataviz
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -17,14 +21,16 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
-private val inputModes = listOf("Type", "Paste", "File", "Sample")
+private val inputModes = listOf("Type", "Paste", "File", "Sample", "Saved")
 
 // Some file apps label CSV files as plain text or generic data
 private val fileTypes = arrayOf(
@@ -42,7 +48,10 @@ fun DataScreen(model: AppViewModel) {
 
     ScrollPage {
         PageTitle("📥 Data")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             inputModes.forEach { option ->
                 FilterChip(
                     selected = mode == option,
@@ -56,13 +65,17 @@ fun DataScreen(model: AppViewModel) {
             "Type" -> TypeData(model)
             "Paste" -> PasteData(model)
             "File" -> PickFile(model)
-            else -> PickSample(model)
+            "Sample" -> PickSample(model)
+            else -> SavedDatasets(model)
         }
 
         model.snapshot?.let { snapshot ->
             Section("Active dataset") {
                 Text(snapshot.source)
                 DatasetMetrics(snapshot)
+            }
+            SaveAndExport(model, snapshot)
+            Section("Preview") {
                 DataTable(snapshot.preview)
                 if (snapshot.rows > snapshot.preview.rows.size) {
                     Text(
@@ -72,6 +85,77 @@ fun DataScreen(model: AppViewModel) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SaveAndExport(model: AppViewModel, snapshot: Snapshot) {
+    var name by rememberSaveable(snapshot.source) {
+        mutableStateOf(snapshot.source.substringAfter(": ").substringBeforeLast("."))
+    }
+    val exporter = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv"),
+    ) { uri -> uri?.let(model::exportCsv) }
+
+    Section("Keep this data") {
+        Text("Saves the data as it is now, including any cleaning.")
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text("Name") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { model.saveDataset(name) },
+                enabled = name.isNotBlank() && !model.busy,
+            ) { Text("Save in app") }
+            OutlinedButton(
+                onClick = { exporter.launch("${name.ifBlank { "data" }}.csv") },
+                enabled = !model.busy,
+            ) { Text("Export CSV") }
+        }
+    }
+}
+
+@Composable
+private fun SavedDatasets(model: AppViewModel) {
+    var toDelete by remember { mutableStateOf<String?>(null) }
+
+    Section("Saved datasets") {
+        if (model.saved.isEmpty()) Text("Nothing saved yet. Load some data, then save it below.")
+        model.saved.forEach { item ->
+            Column {
+                Text(item.name, fontWeight = FontWeight.Bold)
+                Text(
+                    "${item.rows} rows · ${item.columns} columns · ${item.savedAt}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { model.openSaved(item.name) },
+                        enabled = !model.busy,
+                    ) { Text("Open") }
+                    TextButton(onClick = { toDelete = item.name }) { Text("Delete") }
+                }
+            }
+        }
+    }
+
+    toDelete?.let { name ->
+        AlertDialog(
+            onDismissRequest = { toDelete = null },
+            title = { Text("Delete '$name'?") },
+            text = { Text("This can't be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    toDelete = null
+                    model.deleteSaved(name)
+                }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { toDelete = null }) { Text("Cancel") } },
+        )
     }
 }
 

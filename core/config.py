@@ -22,6 +22,7 @@ PARSE_THRESHOLD = 0.8  # share of text values that must parse to count as number
 IQR_MULTIPLIER = 1.5  # outliers lie this many IQRs below Q1 or above Q3
 
 # Charts
+MAX_SUGGESTIONS = 4
 BAR_MAX_CATEGORIES = 30  # beyond this, the smallest categories fold into "Other"
 PIE_MAX_SLICES = 6
 MAX_SERIES = 8  # the most colours a chart may use to tell groups apart

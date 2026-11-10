@@ -2,6 +2,7 @@ package com.adityapatra.dataviz
 
 import android.app.Application
 import android.net.Uri
+import android.util.Base64
 import android.provider.OpenableColumns
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -11,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.chaquo.python.PyException
+import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -30,6 +32,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var options by mutableStateOf<ChartOptions?>(null)
         private set
     var chart by mutableStateOf<DrawnChart?>(null)
+    var insights by mutableStateOf<Insights?>(null)
+        private set
+    var saved by mutableStateOf<List<SavedDataset>>(emptyList())
+        private set
 
     var form by mutableStateOf(ChartForm())
     var pastedText by mutableStateOf("")
@@ -45,6 +51,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         work { // The first call also starts Python and imports pandas
+            val database = File(application.filesDir, "datasets.db").path
+            Core.call("set_storage", database)
+            saved = savedFrom(Core.call("saved_datasets"))
             show(Core.call("snapshot"))
             ready = true
         }
@@ -152,8 +161,59 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (form == current) form = current.copy(x = x, y = y, color = color, agg = agg)
     }
 
-    fun draw(dark: Boolean) = work {
-        val choices = options ?: return@work
+    fun refreshInsights() = work(showBusy = false) {
+        insights = insightsFrom(Core.call("insights"))
+    }
+
+    fun drawSuggestion(item: Suggestion, dark: Boolean) = work {
+        val next = form.copy(
+            chart = item.chart,
+            x = item.x,
+            y = item.y,
+            color = item.color,
+            agg = item.agg,
+            title = "",
+        )
+        form = next
+        options = optionsFrom(Core.call("chart_options", next.chart, next.x, next.color))
+        drawForm(dark)
+    }
+
+    fun draw(dark: Boolean) = work { drawForm(dark) }
+
+    fun saveDataset(name: String) = work {
+        val reply = Core.call("save_dataset", name)
+        saved = savedFrom(reply)
+        notice = reply.getString("message")
+    }
+
+    fun openSaved(name: String) = load("open_saved", name)
+
+    fun deleteSaved(name: String) = work {
+        val reply = Core.call("delete_saved", name)
+        saved = savedFrom(reply)
+        notice = reply.getString("message")
+    }
+
+    private suspend fun write(uri: Uri, content: ByteArray) = withContext(Dispatchers.IO) {
+        val resolver = getApplication<Application>().contentResolver
+        resolver.openOutputStream(uri)?.use { it.write(content) }
+            ?: throw IOException("No output")
+    }
+
+    fun exportCsv(uri: Uri) = work {
+        write(uri, Core.call("export_csv").getString("csv").toByteArray())
+        notice = "Saved the data as a CSV file."
+    }
+
+    /** Saves a chart image, which the page hands over as a base64 "data:" address. */
+    fun saveImage(uri: Uri, image: String) = work {
+        write(uri, Base64.decode(image.substringAfter(","), Base64.DEFAULT))
+        notice = "Saved the chart as an image."
+    }
+
+    private suspend fun drawForm(dark: Boolean) {
+        val choices = options ?: return
         val current = form
         val reply = Core.call(
             "draw",

@@ -1,9 +1,13 @@
 package com.adityapatra.dataviz
 
+import android.net.Uri
 import android.view.ViewGroup
+import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -26,10 +31,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.roundToInt
@@ -41,6 +48,9 @@ fun ChartsScreen(model: AppViewModel) {
     LaunchedEffect(snapshot, form.chart, form.x, form.color) {
         if (snapshot != null) model.refreshOptions()
     }
+    LaunchedEffect(snapshot) {
+        if (snapshot != null) model.refreshInsights()
+    }
 
     val chart = model.chart
     when {
@@ -48,7 +58,44 @@ fun ChartsScreen(model: AppViewModel) {
         else -> ScrollPage {
             PageTitle("📈 Charts")
             val options = model.options
-            if (snapshot == null) NeedData() else if (options != null) ChartForm(model, options)
+            if (snapshot == null) {
+                NeedData()
+            } else {
+                model.insights?.let { InsightsSection(model, it) }
+                if (options != null) Section("Build your own") { ChartForm(model, options) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InsightsSection(model: AppViewModel, insights: Insights) {
+    val dark = isSystemInDarkTheme()
+    var showStats by rememberSaveable { mutableStateOf(false) }
+
+    Section("What the data shows") {
+        insights.findings.forEach { Text("• $it") }
+        if (insights.stats.rows.isNotEmpty()) {
+            TextButton(onClick = { showStats = !showStats }) {
+                Text(if (showStats) "Hide summary statistics" else "Show summary statistics")
+            }
+            if (showStats) DataTable(insights.stats)
+        }
+    }
+    if (insights.suggestions.isNotEmpty()) {
+        Section("Suggested charts") {
+            insights.suggestions.forEach { item ->
+                OutlinedButton(
+                    onClick = { model.drawSuggestion(item, dark) },
+                    enabled = !model.busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(Modifier.fillMaxWidth()) {
+                        Text(item.chart, fontWeight = FontWeight.Bold)
+                        Text(item.reason, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
         }
     }
 }
@@ -117,6 +164,16 @@ private fun ChartForm(model: AppViewModel, options: ChartOptions) {
 @Composable
 private fun ChartResult(model: AppViewModel, chart: DrawnChart) {
     var showData by rememberSaveable { mutableStateOf(false) }
+    var webView by remember { mutableStateOf<WebView?>(null) }
+    var imageTarget by remember { mutableStateOf<Uri?>(null) }
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/png"),
+    ) { uri ->
+        if (uri != null) {
+            imageTarget = uri
+            webView?.evaluateJavascript("exportImage()", null)
+        }
+    }
     BackHandler { model.chart = null }
 
     Column(Modifier.fillMaxSize()) {
@@ -127,6 +184,11 @@ private fun ChartResult(model: AppViewModel, chart: DrawnChart) {
         ) {
             TextButton(onClick = { model.chart = null }) { Text("← Options") }
             Spacer(Modifier.weight(1f))
+            if (!showData) {
+                TextButton(onClick = { imagePicker.launch("dataviz-chart.png") }) {
+                    Text("Save image")
+                }
+            }
             TextButton(onClick = { showData = !showData }) {
                 Text(if (showData) "Show chart" else "Show data")
             }
@@ -148,14 +210,29 @@ private fun ChartResult(model: AppViewModel, chart: DrawnChart) {
             ) { DataTable(chart.data) }
         } else {
             key(chart.figureJson) {
-                ChartView(chart.figureJson, Modifier.weight(1f))
+                ChartView(
+                    figureJson = chart.figureJson,
+                    modifier = Modifier.weight(1f),
+                    onCreated = { webView = it },
+                    onImage = { image -> imageTarget?.let { model.saveImage(it, image) } },
+                )
             }
         }
     }
 }
 
+private class ImageReceiver(private val onImage: (String) -> Unit) {
+    @JavascriptInterface
+    fun deliver(image: String) = onImage(image)
+}
+
 @Composable
-private fun ChartView(figureJson: String, modifier: Modifier) {
+private fun ChartView(
+    figureJson: String,
+    modifier: Modifier,
+    onCreated: (WebView) -> Unit,
+    onImage: (String) -> Unit,
+) {
     AndroidView(
         modifier = modifier.fillMaxWidth(),
         factory = { context ->
@@ -166,12 +243,15 @@ private fun ChartView(figureJson: String, modifier: Modifier) {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                 )
                 settings.javaScriptEnabled = true
+                // Only our own bundled page runs here, and this is all it can reach
+                addJavascriptInterface(ImageReceiver(onImage), "AndroidImage")
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView, url: String) {
                         view.evaluateJavascript("render($figureJson)", null)
                     }
                 }
                 loadUrl("file:///android_asset/chart.html")
+                onCreated(this)
             }
         },
         onRelease = { it.destroy() },
