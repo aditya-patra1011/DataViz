@@ -40,8 +40,10 @@ package also powers the original web prototype in `app/` (Streamlit).
 
 ## Running it on a laptop (no Android phone needed)
 
-You need [Android Studio](https://developer.android.com/studio) installed once, with a virtual
-phone called `DataViz_Phone`. Then, from this folder:
+You need [Android Studio](https://developer.android.com/studio) installed once, the Android SDK
+(the launcher looks in `ANDROID_HOME`, `%USERPROFILE%\Android\Sdk` and
+`%LOCALAPPDATA%\Android\Sdk`), Java 17 in `%USERPROFILE%\.jdks`, and a virtual phone called
+`DataViz_Phone`. Then, from this folder:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\demo.ps1
