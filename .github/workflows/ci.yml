@@ -73,8 +73,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dataviz-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: dataviz-debug-apks
+          path: android/app/build/outputs/apk/*/debug/*.apk
 
       - name: Enable KVM for the emulator
         run: |
@@ -110,12 +110,12 @@ jobs:
           emulator-boot-timeout: 900
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
-            ./gradlew installDebug
+            ./gradlew installEmulatorDebug
             adb shell am start -W -n com.adityapatra.dataviz/.MainActivity
             sleep 90
             adb exec-out screencap -p > "$GITHUB_WORKSPACE/emulator-screenshot.png"
             adb logcat -d -s python.stdout python.stderr AndroidRuntime chromium > "$GITHUB_WORKSPACE/emulator-log.txt" || true
-            ./gradlew connectedDebugAndroidTest
+            ./gradlew connectedEmulatorDebugAndroidTest
 
       - uses: actions/upload-artifact@v4
         if: always()

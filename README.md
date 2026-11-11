@@ -1,57 +1,96 @@
 # 📊 DataViz
 
-A web app that turns the data you enter into interactive charts, cleaning reports and insights.
-Built with Python, Streamlit, pandas and Plotly.
+An Android app that turns the data you enter into interactive charts, a data-quality report and
+plain-English insights. It works fully offline.
 
-## Features (planned)
+The screens are written in Kotlin with Jetpack Compose. All the data work (reading, cleaning,
+statistics and building charts) is done by a Python package, `core/`, that runs **on the phone**
+through [Chaquopy](https://chaquo.com/chaquopy/), using pandas and Plotly.
 
-- **Data input** — type data in a table, paste from a spreadsheet, or upload CSV/Excel
-- **Cleaning pipeline** — automatic type detection, missing-value handling, validation and outlier checks
-- **Visualizations** — bar, line, pie, scatter, histogram, box plot, heatmap and more, all interactive
-- **Smart suggestions** — recommends the right chart for your columns and writes plain-English insights
-- **Saved datasets** — store and reload datasets (SQLite), export cleaned data and charts
+## Features
 
-## Architecture
+- **Enter data four ways:** type it, paste it from a spreadsheet, open a CSV or Excel (.xlsx)
+  file, or load a sample
+- **Clean it:** column types, missing values, duplicate rows and outliers (1.5 × IQR rule), with
+  one-tap fixes, a log of every change and a reset button
+- **Chart it:** bar, line, area, pie, scatter, histogram, box plot and correlation heatmap. Only
+  the columns that suit each chart are offered; charts can be zoomed and tapped for exact values
+- **Understand it:** plain-English findings (trend over time, best and worst group, strongest
+  relationship, data problems), summary statistics and suggested charts
+- **Keep it:** save datasets inside the app, export data as CSV and charts as PNG
+- Light and dark mode, using colourblind-checked colour palettes
+
+## How it fits together
 
 ```
-app/    → Streamlit pages (presentation only)
-core/   → pure-Python logic: ingest, clean, profile, stats, recommend, charts, storage
-tests/  → pytest tests for core/
+Kotlin screens (Data, Clean, Charts)          android/app/src/main/kotlin/
+        │  calls functions, gets JSON back
+        ▼
+Python bridge                                  android/app/src/main/python/bridge.py
+        │
+        ▼
+core/  ingest · profile · clean · stats · recommend · charts · storage
+        │  pandas for the data, Plotly for the chart description
+        ▼
+WebView + plotly.js draws the chart            android/app/src/main/assets/chart.html
 ```
 
-`core/` never imports Streamlit, so every piece of logic is testable on its own and could be
-reused behind a different front end (for example a REST API).
+`core/` has no Android or web code in it, so it is tested on its own with pytest. The same
+package also powers the original web prototype in `app/` (Streamlit).
 
-## Getting started
+## Running it on a laptop (no Android phone needed)
+
+You need [Android Studio](https://developer.android.com/studio) installed once, with a virtual
+phone called `DataViz_Phone`. Then, from this folder:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\demo.ps1
+```
+
+This starts the virtual phone, builds and installs the app, copies the sample CSV files onto the
+phone and opens DataViz. Add `-Rebuild` after changing the code.
+
+To use your own CSV files, drag them onto the phone window. They land in the phone's Download
+folder; in the app choose **Data → File → Choose file**, then **☰ → Downloads**.
+
+## Installing on a real Android phone
+
+Build the phone version and copy the APK to the phone:
+
+```powershell
+cd android
+.\gradlew.bat assemblePhoneRelease
+```
+
+The file is `android/app/build/outputs/apk/phone/release/app-phone-release.apk`. It needs
+Android 7.0 or newer on a 64-bit ARM phone (nearly all phones from the last several years).
+Every pull request's CI run also uploads the built APKs.
+
+There are two versions because Python and pandas are compiled separately for each kind of
+processor: **phone** (ARM, for real phones) and **emulator** (x86, for the laptop).
+
+## Tests
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate          # Windows
-# source .venv/bin/activate     # macOS / Linux
-pip install -r requirements.txt -r requirements-dev.txt
-streamlit run app/Home.py
-```
-
-## Development
-
-```bash
+pytest            # Python tests for core/, the bridge and the web prototype
 ruff check .      # lint
-pytest            # run tests
 ```
 
-Every pull request is checked automatically by GitHub Actions (lint + tests).
+Python tests run against two setups: the main one, and `requirements-android.txt`, which pins
+the exact versions the phone uses (Python 3.11, pandas 2.1.3). On-device tests in
+`android/app/src/androidTest` run the real app's Python on an emulator.
 
-## Roadmap
+GitHub Actions runs all of this on every pull request, including building the app and running it
+on an Android emulator.
+
+## Project history
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 | Project setup, CI | ✅ Done |
-| 1 | Data input (manual, paste, CSV/Excel upload) | ✅ Done |
-| 2 | Cleaning & validation pipeline | ✅ Done |
-| 3 | Visualizations | ✅ Done |
-| A1 | Android proof of concept (Python core on the device) | ✅ Done |
+| 0–3 | Web prototype: setup, data input, cleaning, charts | ✅ Done |
+| A1 | Android proof of concept: Python core on the device | ✅ Done |
 | A2 | Android screens: Data, Clean, Charts | ✅ Done |
-| A3 | Chart suggestions, insights, saved datasets, export | 🚧 In progress |
-| 4 | Chart recommender & auto-insights | ⏳ |
-| 5 | Saved datasets & export | ⏳ |
-| 6 | Tests, polish & deployment | ⏳ |
+| A3 | Insights, chart suggestions, saved datasets, export | ✅ Done |
+| A4 | Smaller app, demo launcher, presentation guide | 🚧 In progress |
+
+See [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md) for how to present the app.
