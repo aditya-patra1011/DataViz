@@ -85,6 +85,10 @@ the exact versions the phone uses (Python 3.11, pandas 2.1.3). On-device tests i
 GitHub Actions runs all of this on every pull request, including building the app and running it
 on an Android emulator.
 
+The app has also been run on real phones with Firebase Test Lab: it passed on a Galaxy A05s
+(Android 15), Galaxy A14 5G (Android 14), Pixel 5 (Android 11) and an Android tablet. A Galaxy
+A13 5G was skipped because it runs 32-bit Android, and this app is built for 64-bit phones.
+
 ## Project history
 
 | Phase | Scope | Status |
@@ -93,6 +97,6 @@ on an Android emulator.
 | A1 | Android proof of concept: Python core on the device | ✅ Done |
 | A2 | Android screens: Data, Clean, Charts | ✅ Done |
 | A3 | Insights, chart suggestions, saved datasets, export | ✅ Done |
-| A4 | Smaller app, demo launcher, presentation guide | 🚧 In progress |
+| A4 | Smaller app, demo launcher, presentation guide, real-phone testing | ✅ Done |
 
 See [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md) for how to present the app.
