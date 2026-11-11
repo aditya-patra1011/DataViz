@@ -13,7 +13,19 @@ param([switch]$Rebuild, [switch]$SafeGraphics)
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
-$sdk = "$env:LOCALAPPDATA\Android\Sdk"
+
+# The Android SDK can live in a few places; use the first one that has adb in it
+$candidates = @(
+    $env:ANDROID_HOME,
+    $env:ANDROID_SDK_ROOT,
+    "$env:USERPROFILE\Android\Sdk",
+    "$env:LOCALAPPDATA\Android\Sdk"
+) | Where-Object { $_ }
+$sdk = $candidates | Where-Object { Test-Path "$_\platform-tools\adb.exe" } | Select-Object -First 1
+if (-not $sdk) {
+    throw "The Android SDK was not found. Looked in: $($candidates -join ', ')"
+}
+$env:ANDROID_HOME = $sdk
 $adb = "$sdk\platform-tools\adb.exe"
 $emulator = "$sdk\emulator\emulator.exe"
 $phone = "DataViz_Phone"
@@ -33,10 +45,6 @@ function AdbText {
     $previous = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     try { "$(& $adb @args 2>$null)".Trim() } finally { $ErrorActionPreference = $previous }
-}
-
-if (-not (Test-Path $adb)) {
-    throw "The Android SDK was not found at $sdk. Install Android Studio first."
 }
 
 if ($Rebuild -or -not (Test-Path $apk)) {
@@ -80,11 +88,16 @@ do {
 # phone can show "System UI isn't responding". Wait until it has calmed down.
 Step "Letting the phone finish its start-up work (up to 5 minutes)"
 $settleBy = (Get-Date).AddMinutes(5)
+$load = 99.0
 do {
     Start-Sleep -Seconds 5
-    $load = [double]::Parse((AdbText shell cat /proc/loadavg).Split(" ")[0],
-        [System.Globalization.CultureInfo]::InvariantCulture)
-} until ($load -lt 4 -or (Get-Date) -gt $settleBy)
+    if ((AdbText devices) -notmatch "emulator-\d+\s+device") {
+        throw "The phone window closed while it was starting up. Run this script again."
+    }
+    $reading = (AdbText shell cat /proc/loadavg).Split(" ")[0]
+    $parsed = [double]::TryParse($reading, [System.Globalization.NumberStyles]::Float,
+        [System.Globalization.CultureInfo]::InvariantCulture, [ref]$load)
+} until (($parsed -and $load -lt 4) -or (Get-Date) -gt $settleBy)
 
 Step "Installing DataViz"
 Adb install -r $apk
